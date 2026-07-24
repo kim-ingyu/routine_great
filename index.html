@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>루틴실행기</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{
+    --bg:#0a0d12;
+    --bg-elevated:#12161e;
+    --bg-card:#151a22;
+    --border:#232a36;
+    --gold:#d4a24c;
+    --gold-soft:#e9c27a;
+    --text-primary:#e7e9ec;
+    --text-muted:#828a97;
+    --green:#3ecf8e;
+    --amber:#f0a75f;
+    --red:#e2685f;
+  }
+  *{ -webkit-tap-highlight-color: transparent; }
+  html,body{ background:var(--bg); color:var(--text-primary); font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Pretendard',sans-serif; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#2a3140; border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  .card{ background:var(--bg-card); border:1px solid var(--border); border-radius:14px; }
+  .card-elevated{ background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; }
+  input[type=text], input[type=number], input[type=date], textarea, select{
+    background:#0d1117; border:1px solid var(--border); color:var(--text-primary);
+    border-radius:8px; padding:7px 10px; font-size:13px; width:100%;
+    outline:none;
+  }
+  input:focus, textarea:focus, select:focus{ border-color:var(--gold); }
+  textarea{ resize:vertical; min-height:64px; line-height:1.5; }
+  .badge-gold{ background:linear-gradient(135deg,var(--gold),var(--gold-soft)); color:#241a08; font-weight:700; }
+  .tab-btn{ color:var(--text-muted); border-bottom:2px solid transparent; padding:10px 4px; font-size:13px; white-space:nowrap; }
+  .tab-btn.active{ color:var(--gold); border-bottom-color:var(--gold); font-weight:600; }
+  .chk{ appearance:none; width:22px; height:22px; min-width:22px; border:1.5px solid #3a4353; border-radius:6px; background:#0d1117; cursor:pointer; position:relative; }
+  .chk:checked{ background:var(--gold); border-color:var(--gold); }
+  .chk:checked::after{ content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#1a1408; }
+  details > summary{ cursor:pointer; list-style:none; }
+  details > summary::-webkit-details-marker{ display:none; }
+  .summary-arrow{ transition: transform .15s ease; }
+  details[open] .summary-arrow{ transform: rotate(90deg); }
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--gold); color:#241a08; font-weight:700; padding:10px 20px; border-radius:999px; font-size:13px; z-index:100; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+  .progress-track{ background:#1c222c; border-radius:999px; height:6px; overflow:hidden; }
+  .progress-fill{ height:100%; border-radius:999px; background:var(--gold); }
+  .cal-cell{ min-height:85px; border-radius:8px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:6px; font-size:11px; border:1px solid var(--border); background:var(--bg-elevated); }
+  .quick-link{ color:var(--gold); font-size:12px; font-weight:600; cursor:pointer; }
+  .quick-link:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+<div id="app" class="max-w-4xl mx-auto pb-24 px-2 sm:px-4"></div>
+<div id="toast" class="toast"></div>
+
+<!-- Firebase SDK Imports -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBqPKFKjUEfXCiFxMdUo5aW_Wzf8krqojk",
+    authDomain: "newframe-a2f99.firebaseapp.com",
+    projectId: "newframe-a2f99",
+    storageBucket: "newframe-a2f99.firebasestorage.app",
+    messagingSenderId: "799137998062",
+    appId: "1:799137998062:web:5a5f9cf3e820335d587fff",
+    measurementId: "G-L2L3LHB73H"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const DOC_REF = doc(db, "routineApp", "userData");
+
+  /* ================= STORAGE / DATA LAYER ================= */
+  const STORAGE_KEY = 'routineExecutor_v2';
+
+  function defaultVision(){
+    return {
+      mantra: '생각하라 그리고 부자가 되어라!',
+      lifeVisions: [
+        '나는 2041년에 52억 자산가 되어, 제2의 인생을 살고있다.',
+        '아이들한테 다정한 아빠 따듯한 아빠로 기억된다',
+        '1년에 100권의 책을 읽는다.'
+      ],
+      reasonsTitle: '목표를 달성해야하는 이유',
+      reasons: ['원하는 것을, 원할 때, 원하는 사람과, 원하는 만큼 하기 위해'],
+      goodBadPairs: [
+        { good:'긍정의 말', bad:'남과의 비교' },
+        { good:'따뜻한 말', bad:'핸드폰 킬링타임' }
+      ]
+    };
+  }
+
+  function defaultMonthTemplate(){
+    return {
+      dailyRoutines: [
+        {id: Date.now() + 1, name: '아침독서 45분'},
+        {id: Date.now() + 2, name: '저녁독서 15분'},
+        {id: Date.now() + 3, name: '경제신문보기'},
+        {id: Date.now() + 4, name: '아침조깅'},
+        {id: Date.now() + 5, name: '긍정확인'}
+      ],
+      investorRoutines: [
+        {id: Date.now() + 101, name: '시세 트래킹'},
+        {id: Date.now() + 102, name: '투자 칼럼 읽기'}
+      ],
+      books: [
+        { id: 'b1', title: '부자 아빠 가난한 아빠', totalPages: 350 },
+        { id: 'b2', title: '원씽 (The One Thing)', totalPages: 280 }
+      ]
+    };
+  }
+
+  async function loadState(){
+    let data = {};
+    try {
+      const docSnap = await getDoc(DOC_REF);
+      if (docSnap.exists()) {
+        data = docSnap.data();
+      } else {
+        data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      }
+    } catch(e) {
+      console.warn("Firestore Load Error, falling back to localStorage", e);
+      data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    }
+
+    return {
+      vision: data.vision || defaultVision(),
+      monthly: data.monthly || {},
+      daily: data.daily || {},
+      calendarBooks: data.calendarBooks || {}
+    };
+  }
+
+  async function persist(){
+    const payload = { 
+      vision: state.vision, 
+      monthly: state.monthly, 
+      daily: state.daily,
+      calendarBooks: state.calendarBooks 
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    try {
+      await setDoc(DOC_REF, payload, { merge: true });
+    } catch(e) {
+      console.error("Firestore Save Error", e);
+    }
+  }
+
+  /* ================= HELPERS ================= */
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function fmtDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function monthKeyOf(dateStr){ return dateStr.slice(0,7); }
+  function daysInMonthCount(mKey){ const [y,m]=mKey.split('-').map(Number); return new Date(y,m,0).getDate(); }
+  function addDays(dateStr, delta){ const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+delta); return fmtDate(d); }
+  function addMonths(mKey, delta){ const [y,m]=mKey.split('-').map(Number); const d=new Date(y, m-1+delta, 1); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+  function monthLabel(mKey){ const [y,m]=mKey.split('-').map(Number); return y+'년 '+m+'월'; }
+  function dateLabel(dateStr){ const d=new Date(dateStr+'T00:00:00'); const days=['일','월','화','수','목','금','토']; return (d.getMonth()+1)+'월 '+d.getDate()+'일 ('+days[d.getDay()]+')'; }
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function ensureMonthConfig(mKey){
+    if(state.monthly[mKey]) return state.monthly[mKey];
+    const keys = Object.keys(state.monthly).filter(k=>k<mKey).sort();
+    if(keys.length){
+      const base = keys[keys.length-1];
+      state.monthly[mKey] = JSON.parse(JSON.stringify(state.monthly[base]));
+    } else {
+      state.monthly[mKey] = defaultMonthTemplate();
+    }
+    persist();
+    return state.monthly[mKey];
+  }
+
+  function ensureDaily(dateKey){
+    if(!state.daily[dateKey]){
+      state.daily[dateKey] = { dailyChecks:{}, investorChecks:{}, pagesRead:0 };
+    }
+    return state.daily[dateKey];
+  }
+
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(()=>t.classList.remove('show'), 1600);
+  }
+
+  /* ================= 연산: 월간 루틴 달성도 계산 ================= */
+  function calculateRoutineStats(mKey, routineId, type = 'daily'){
+    const totalDays = daysInMonthCount(mKey);
+    let checkedCount = 0;
+
+    for(let d=1; d<=totalDays; d++){
+      const dateKey = mKey + '-' + pad(d);
+      const dayRec = state.daily[dateKey];
+      if(dayRec){
+        const bucket = type === 'daily' ? dayRec.dailyChecks : dayRec.investorChecks;
+        if(bucket && bucket[routineId]){
+          checkedCount++;
+        }
+      }
+    }
+
+    const percentage = ((checkedCount / totalDays) * 100).toFixed(1);
+    return { checkedCount, totalDays, percentage };
+  }
+
+  /* ================= 연산: 독서 목표 페이지 연산 ================= */
+  function getTodayReadingGoal(dateStr){
+    const bookId = state.calendarBooks[dateStr];
+    if(!bookId) return null;
+
+    const mKey = monthKeyOf(dateStr);
+    const cfg = ensureMonthConfig(mKey);
+    const book = (cfg.books || []).find(b => b.id === bookId);
+    if(!book) return null;
+
+    let allocatedDays = 0;
+    const totalDays = daysInMonthCount(mKey);
+    for(let d=1; d<=totalDays; d++){
+      const curDate = mKey + '-' + pad(d);
+      if(state.calendarBooks[curDate] === bookId){
+        allocatedDays++;
+      }
+    }
+
+    if(allocatedDays === 0) return null;
+    const targetPages = Math.ceil((Number(book.totalPages) || 0) / allocatedDays);
+
+    return { title: book.title, targetPages: targetPages };
+  }
+
+  /* ================= STATE INIT ================= */
+  let state = await loadState();
+  state.currentTab = 'routine';
+  const _today = new Date();
+  state.selectedDate = fmtDate(_today);
+  state.selectedMonth = monthKeyOf(state.selectedDate);
+  ensureMonthConfig(state.selectedMonth);
+
+  /* ================= ACTIONS ================= */
+  window.switchTab = function(tab){ state.currentTab = tab; render(); };
+  window.goDate = function(delta){ state.selectedDate = addDays(state.selectedDate, delta); state.selectedMonth = monthKeyOf(state.selectedDate); ensureMonthConfig(state.selectedMonth); render(); };
+  window.setDate = function(v){ if(!v) return; state.selectedDate = v; state.selectedMonth = monthKeyOf(v); ensureMonthConfig(state.selectedMonth); render(); };
+  window.goMonth = function(delta){ state.selectedMonth = addMonths(state.selectedMonth, delta); ensureMonthConfig(state.selectedMonth); render(); };
+
+  window.toggleCheck = function(type, id){
+    const rec = ensureDaily(state.selectedDate);
+    const bucket = type==='daily' ? rec.dailyChecks : rec.investorChecks;
+    bucket[id] = !bucket[id];
+    persist(); render();
+  };
+
+  window.updateField = function(path, value){
+    let obj = state;
+    for(let i=0;i<path.length-1;i++) obj = obj[path[i]];
+    obj[path[path.length-1]] = value;
+    persist();
+  };
+
+  window.saveNow = function(){ persist(); toast('클라우드에 저장되었습니다 ✓'); };
+
+  window.addDailyRoutineConfig = function(){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    cfg.dailyRoutines.push({ id: Date.now(), name: '' });
+    persist(); render();
+  };
+  window.removeDailyRoutineConfig = function(idx){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    cfg.dailyRoutines.splice(idx, 1);
+    persist(); render();
+  };
+
+  window.addInvestorRoutineConfig = function(){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    cfg.investorRoutines.push({ id: Date.now(), name: '' });
+    persist(); render();
+  };
+  window.removeInvestorRoutineConfig = function(idx){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    cfg.investorRoutines.splice(idx, 1);
+    persist(); render();
+  };
+
+  window.addBookConfig = function(){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    if(!cfg.books) cfg.books = [];
+    cfg.books.push({ id: 'b_' + Date.now(), title: '', totalPages: 0 });
+    persist(); render();
+  };
+  window.removeBookConfig = function(idx){
+    const cfg = ensureMonthConfig(state.selectedMonth);
+    cfg.books.splice(idx, 1);
+    persist(); render();
+  };
+
+  window.setCalendarBook = function(dateStr, bookId){
+    if(bookId){ state.calendarBooks[dateStr] = bookId; } 
+    else { delete state.calendarBooks[dateStr]; }
+    persist(); render();
+  };
+
+  window.exportBackup = function(){
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '루틴실행기_백업_'+state.selectedDate+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('백업 파일을 내려받았습니다 ✓');
+  };
+
+  window.importBackup = function(input){
+    const file = input.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try{
+        const data = JSON.parse(e.target.result);
+        state = { ...state, ...data };
+        persist(); render(); toast('백업을 복구했습니다 ✓');
+      }catch(err){ toast('파일을 읽을 수 없습니다'); }
+    };
+    reader.readAsText(file);
+  };
+
+  /* ================= RENDER ================= */
+  function render(){
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      ${renderHeader()}
+      <nav class="flex gap-4 sm:gap-6 px-2 border-b overflow-x-auto" style="border-color:var(--border)">
+        ${tabBtn('routine','01 · 루틴')}
+        ${tabBtn('diary','02 · 일기')}
+        ${tabBtn('config','03 · 기준정보')}
+        ${tabBtn('calendar','04 · 캘린더')}
+      </nav>
+      <div id="tabcontent" class="pt-4">
+        ${state.currentTab==='routine' ? renderRoutineTab() : ''}
+        ${state.currentTab==='diary' ? renderDiaryTab() : ''}
+        ${state.currentTab==='config' ? renderConfigTab() : ''}
+        ${state.currentTab==='calendar' ? renderCalendarTab() : ''}
+      </div>
+    `;
+  }
+  function tabBtn(id,label){ return `<button onclick="switchTab('${id}')" class="tab-btn ${state.currentTab===id?'active':''}">${label}</button>`; }
+
+  function renderHeader(){
+    return `
+    <div class="flex items-center justify-between py-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl badge-gold flex items-center justify-center text-base">🎯</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-base font-bold">루틴실행기</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full badge-gold">CLOUD CONNECTED</span>
+          </div>
+          <div class="text-xs" style="color:var(--text-muted)">하루 습관과 독서 목표의 자동 관리</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs px-2.5 py-1.5 rounded-lg card cursor-pointer" style="color:var(--text-muted)">
+          📥 복구<input type="file" accept="application/json" class="hidden" onchange="importBackup(this)">
+        </label>
+        <button onclick="exportBackup()" class="text-xs px-2.5 py-1.5 rounded-lg card" style="color:var(--text-muted)">💾 백업</button>
+      </div>
+    </div>`;
+  }
+
+  function renderRoutineTab(){
+    const mKey = state.selectedMonth;
+    const cfg = ensureMonthConfig(mKey);
+    const rec = ensureDaily(state.selectedDate);
+    const readingGoal = getTodayReadingGoal(state.selectedDate);
+
+    const dailyList = (cfg.dailyRoutines || []).filter(r=>r.name && r.name.trim());
+    const investorList = (cfg.investorRoutines || []).filter(r=>r.name && r.name.trim());
+
+    return `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button onclick="goDate(-1)" class="w-8 h-8 rounded-lg card text-sm">←</button>
+        <input type="date" value="${state.selectedDate}" onchange="setDate(this.value)" class="!w-auto text-xs sm:text-sm">
+        <button onclick="goDate(1)" class="w-8 h-8 rounded-lg card text-sm">→</button>
+        <span class="text-xs font-medium ml-1 hidden sm:inline" style="color:var(--text-muted)">${dateLabel(state.selectedDate)}</span>
+      </div>
+      <button onclick="saveNow()" class="text-xs font-semibold px-4 py-2 rounded-lg badge-gold">저장하기</button>
+    </div>
+
+    <div class="space-y-4">
+      <div class="card p-4" style="background: linear-gradient(135deg, rgba(212,162,76,0.1) 0%, rgba(18,22,30,1) 100%); border-color: rgba(212,162,76,0.3)">
+        <div class="text-xs font-bold uppercase tracking-wider mb-1" style="color:var(--gold)">오늘의 독서목표</div>
+        ${readingGoal ? `
+          <div class="flex items-baseline justify-between flex-wrap gap-2">
+            <div class="text-base font-bold text-white">📖 ${esc(readingGoal.title)}</div>
+            <div class="text-sm font-semibold" style="color:var(--gold-soft)">목표: <span class="text-lg font-extrabold text-white">${readingGoal.targetPages}</span> page</div>
+          </div>
+        ` : `
+          <div class="text-xs text-gray-400">04. 캘린더 탭에서 오늘 읽을 책을 설정해주세요.</div>
+        `}
+      </div>
+
+      <div class="card p-4">
+        <div class="text-xs font-bold mb-3 flex items-center justify-between" style="color:var(--gold)">
+          <span>일상 루틴</span>
+          <span class="text-[11px] font-normal" style="color:var(--text-muted)">총 ${dailyList.length}개</span>
+        </div>
+        <div class="space-y-2">
+          ${dailyList.length ? dailyList.map(r=>`
+            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors" style="background:#0d1117">
+              <input type="checkbox" class="chk" ${rec.dailyChecks[r.id] ? 'checked' : ''} onchange="toggleCheck('daily', '${r.id}')">
+              <span class="text-sm sm:text-base font-medium ${rec.dailyChecks[r.id] ? 'line-through opacity-50' : ''}">${esc(r.name)}</span>
+            </label>`).join('') : `<div class="text-xs py-2" style="color:var(--text-muted)">03 · 기준정보 탭에서 일상루틴을 등록하세요.</div>`}
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="text-xs font-bold mb-3 flex items-center justify-between" style="color:var(--gold)">
+          <span>투자자 루틴</span>
+          <span class="text-[11px] font-normal" style="color:var(--text-muted)">총 ${investorList.length}개</span>
+        </div>
+        <div class="space-y-2">
+          ${investorList.length ? investorList.map(r=>`
+            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors" style="background:#0d1117">
+              <input type="checkbox" class="chk" ${rec.investorChecks[r.id] ? 'checked' : ''} onchange="toggleCheck('investor', '${r.id}')">
+              <span class="text-sm sm:text-base font-medium ${rec.investorChecks[r.id] ? 'line-through opacity-50' : ''}">${esc(r.name)}</span>
+            </label>`).join('') : `<div class="text-xs py-2" style="color:var(--text-muted)">03 · 기준정보 탭에서 투자자루틴을 등록하세요.</div>`}
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
+  function renderDiaryTab(){
+    const rec = ensureDaily(state.selectedDate);
+    const gratitudeInputs = [0,1,2,3].map(i=>`<textarea placeholder="감사 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','gratitude'], ${i}, this.value)">${esc((rec.gratitude||[])[i])}</textarea>`).join('');
+    const goodInputs = [0,1,2].map(i=>`<textarea placeholder="잘한 점 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','goodPoints'], ${i}, this.value)">${esc((rec.goodPoints||[])[i])}</textarea>`).join('');
+    const impInputs = [0,1,2].map(i=>`<textarea placeholder="개선할 점 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','improvements'], ${i}, this.value)">${esc((rec.improvements||[])[i])}</textarea>`).join('');
+
+    return `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <button onclick="goDate(-1)" class="w-8 h-8 rounded-lg card text-sm">←</button>
+        <input type="date" value="${state.selectedDate}" onchange="setDate(this.value)" class="!w-auto">
+        <button onclick="goDate(1)" class="w-8 h-8 rounded-lg card text-sm">→</button>
+      </div>
+      <button onclick="saveNow()" class="text-xs font-semibold px-3.5 py-2 rounded-lg badge-gold">저장하기</button>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="card p-4">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🙏 감사일기</div>
+        <div class="space-y-2">${gratitudeInputs}</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">👍 잘한 점</div>
+        <div class="space-y-2">${goodInputs}</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🔧 개선할 점 / 반성</div>
+        <div class="space-y-2">${impInputs}</div>
+      </div>
+    </div>
+    `;
+  }
+
+  /* ================= RENDER: TAB 3 (달성 정도 % 연산 추가) ================= */
+  function renderConfigTab(){
+    const mKey = state.selectedMonth;
+    const cfg = ensureMonthConfig(mKey);
+
+    return `
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <button onclick="goMonth(-1)" class="w-8 h-8 rounded-lg card text-sm">←</button>
+        <span class="text-sm font-semibold px-2">${monthLabel(mKey)}</span>
+        <button onclick="goMonth(1)" class="w-8 h-8 rounded-lg card text-sm">→</button>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="saveNow()" class="text-xs font-semibold px-4 py-2 rounded-lg badge-gold">변경사항 저장</button>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <!-- 일상 루틴 마스터 -->
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs font-bold" style="color:var(--gold)">일상 루틴 마스터</div>
+          <button onclick="addDailyRoutineConfig()" class="quick-link text-xs">+ 목표추가</button>
+        </div>
+        <div class="space-y-3">
+          ${(cfg.dailyRoutines || []).map((r, idx)=>{
+            const stats = calculateRoutineStats(mKey, r.id, 'daily');
+            return `
+            <div class="p-2.5 rounded-lg space-y-1.5" style="background:#0d1117; border:1px solid var(--border)">
+              <div class="flex items-center gap-2">
+                <span class="text-xs w-4 text-right font-mono" style="color:var(--text-muted)">${idx+1}</span>
+                <input type="text" value="${esc(r.name)}" placeholder="루틴 이름 입력" onchange="updateField(['monthly','${mKey}','dailyRoutines',${idx},'name'], this.value)">
+                <button onclick="removeDailyRoutineConfig(${idx})" class="text-xs px-2 py-1 rounded shrink-0" style="color:var(--red)">삭제</button>
+              </div>
+              <div class="flex items-center justify-between text-[11px] px-1 pt-1" style="color:var(--text-muted)">
+                <span>월간 달성률</span>
+                <span class="font-bold" style="color:var(--gold)">${stats.checkedCount} / ${stats.totalDays} 일 (${stats.percentage}%)</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: ${stats.percentage}%;"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <!-- 투자자 루틴 마스터 -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs font-bold" style="color:var(--gold)">투자자 루틴 마스터</div>
+            <button onclick="addInvestorRoutineConfig()" class="quick-link text-xs">+ 목표추가</button>
+          </div>
+          <div class="space-y-3">
+            ${(cfg.investorRoutines || []).map((r, idx)=>{
+              const stats = calculateRoutineStats(mKey, r.id, 'investor');
+              return `
+              <div class="p-2.5 rounded-lg space-y-1.5" style="background:#0d1117; border:1px solid var(--border)">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs w-4 text-right font-mono" style="color:var(--text-muted)">${idx+1}</span>
+                  <input type="text" value="${esc(r.name)}" placeholder="투자 루틴 입력" onchange="updateField(['monthly','${mKey}','investorRoutines',${idx},'name'], this.value)">
+                  <button onclick="removeInvestorRoutineConfig(${idx})" class="text-xs px-2 py-1 rounded shrink-0" style="color:var(--red)">삭제</button>
+                </div>
+                <div class="flex items-center justify-between text-[11px] px-1 pt-1" style="color:var(--text-muted)">
+                  <span>월간 달성률</span>
+                  <span class="font-bold" style="color:var(--gold)">${stats.checkedCount} / ${stats.totalDays} 일 (${stats.percentage}%)</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" style="width: ${stats.percentage}%;"></div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 이달의 책 목록 설정 -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs font-bold" style="color:var(--gold)">📖 이달의 책 목록 설정</div>
+            <button onclick="addBookConfig()" class="quick-link text-xs">+ 책추가</button>
+          </div>
+          <div class="space-y-3">
+            ${(cfg.books || []).map((b, idx)=>`
+              <div class="p-2.5 rounded-lg space-y-2" style="background:#0d1117; border:1px solid var(--border)">
+                <div class="flex items-center gap-2">
+                  <input type="text" value="${esc(b.title)}" placeholder="책 제목" onchange="updateField(['monthly','${mKey}','books',${idx},'title'], this.value)">
+                  <button onclick="removeBookConfig(${idx})" class="text-xs px-2 py-1 rounded shrink-0" style="color:var(--red)">삭제</button>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs shrink-0" style="color:var(--text-muted)">총 페이지:</span>
+                  <input type="number" min="1" value="${b.totalPages || ''}" placeholder="페이지 수" onchange="updateField(['monthly','${mKey}','books',${idx},'totalPages'], Number(this.value))">
+                </div>
+              </div>
+            `).join('')}
+            ${(!cfg.books || cfg.books.length===0) ? `<div class="text-xs" style="color:var(--text-muted)">등록된 책이 없습니다. [+ 책추가]를 눌러주세요.</div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
+  function renderCalendarTab(){
+    const mKey = state.selectedMonth;
+    const cfg = ensureMonthConfig(mKey);
+    const books = cfg.books || [];
+
+    const [y,m] = mKey.split('-').map(Number);
+    const firstDay = new Date(y, m-1, 1);
+    const totalDays = daysInMonthCount(mKey);
+    const startOffset = firstDay.getDay();
+
+    let cells = '';
+    for(let i=0; i<startOffset; i++) cells += `<div class="cal-cell opacity-20"></div>`;
+    
+    for(let d=1; d<=totalDays; d++){
+      const dateKey = mKey + '-' + pad(d);
+      const isToday = dateKey === fmtDate(new Date());
+      const selectedBookId = state.calendarBooks[dateKey] || '';
+      const readingGoal = getTodayReadingGoal(dateKey);
+
+      cells += `
+        <div class="cal-cell ${isToday ? 'border-amber-500/50' : ''}">
+          <div class="flex items-center justify-between w-full mb-1">
+            <span class="font-bold text-xs ${isToday ? 'text-amber-400' : 'text-gray-300'}">${d}</span>
+            ${readingGoal ? `<span class="text-[10px] font-semibold" style="color:var(--gold)">${readingGoal.targetPages}p</span>` : ''}
+          </div>
+          
+          <select onchange="setCalendarBook('${dateKey}', this.value)" class="!p-1 !text-[11px] !h-auto">
+            <option value="">- 책 선택 -</option>
+            ${books.map(b=>`
+              <option value="${b.id}" ${selectedBookId === b.id ? 'selected' : ''}>${esc(b.title)}</option>
+            `).join('')}
+          </select>
+        </div>`;
+    }
+
+    return `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <button onclick="goMonth(-1)" class="w-8 h-8 rounded-lg card text-sm">←</button>
+        <span class="text-sm font-semibold px-2">${monthLabel(mKey)}</span>
+        <button onclick="goMonth(1)" class="w-8 h-8 rounded-lg card text-sm">→</button>
+      </div>
+      <div class="text-xs" style="color:var(--text-muted)">날짜별로 읽을 책을 선택하면 일일 목표 페이지가 자동 계산됩니다.</div>
+    </div>
+
+    <div class="card p-3 sm:p-4">
+      <div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-xs font-semibold" style="color:var(--text-muted)">
+        <div class="text-red-400">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="text-blue-400">토</div>
+      </div>
+      <div class="grid grid-cols-7 gap-1.5 sm:gap-2">${cells}</div>
+    </div>
+    `;
+  }
+
+  render();
+</script>
+</body>
+</html>
