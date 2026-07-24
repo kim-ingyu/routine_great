@@ -606,13 +606,16 @@
     }
 
     return `
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
       <div class="flex items-center gap-2">
         <button onclick="goMonth(-1)" class="w-8 h-8 rounded-lg card text-sm">←</button>
         <span class="text-sm font-semibold px-2">${monthLabel(mKey)}</span>
         <button onclick="goMonth(1)" class="w-8 h-8 rounded-lg card text-sm">→</button>
       </div>
-      <div class="text-xs" style="color:var(--text-muted)">날짜별로 읽을 책을 선택하면 일일 목표 페이지가 자동 계산됩니다.</div>
+      <div class="flex items-center gap-3">
+        <div class="text-xs hidden sm:block" style="color:var(--text-muted)">날짜별로 읽을 책을 선택하면 일일 목표 페이지가 자동 계산됩니다.</div>
+        <button onclick="saveNow()" class="text-xs font-semibold px-4 py-2 rounded-lg badge-gold">저장하기</button>
+      </div>
     </div>
 
     <div class="card p-3 sm:p-4">
