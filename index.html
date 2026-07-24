@@ -178,7 +178,7 @@
 
   function ensureDaily(dateKey){
     if(!state.daily[dateKey]){
-      state.daily[dateKey] = { dailyChecks:{}, investorChecks:{}, pagesRead:0 };
+      state.daily[dateKey] = { dailyChecks:{}, investorChecks:{}, gratitude:[], goodPoints:[], improvements:[], pagesRead:0 };
     }
     return state.daily[dateKey];
   }
@@ -260,6 +260,19 @@
     let obj = state;
     for(let i=0;i<path.length-1;i++) obj = obj[path[i]];
     obj[path[path.length-1]] = value;
+    persist();
+  };
+
+  /* 일기 항목 배열 전용 업데이트 함수 */
+  window.updateArrField = function(path, index, value){
+    let obj = state;
+    for(let i=0; i<path.length-1; i++) {
+      if(!obj[path[i]]) obj[path[i]] = {};
+      obj = obj[path[i]];
+    }
+    const arrKey = path[path.length-1];
+    if(!Array.isArray(obj[arrKey])) obj[arrKey] = [];
+    obj[arrKey][index] = value;
     persist();
   };
 
@@ -351,22 +364,22 @@
 
   function renderHeader(){
     return `
-    <div class="flex items-center justify-between py-4">
+    <div class="flex flex-wrap items-center justify-between gap-3 py-4">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl badge-gold flex items-center justify-center text-base">🎯</div>
+        <div class="w-10 h-10 rounded-xl badge-gold flex items-center justify-center text-base shrink-0">🎯</div>
         <div>
-          <div class="flex items-center gap-2">
-            <span class="text-base font-bold">루틴실행기</span>
-            <span class="text-[10px] px-2 py-0.5 rounded-full badge-gold">CLOUD CONNECTED</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-base font-bold whitespace-nowrap">루틴실행기</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full badge-gold whitespace-nowrap">CLOUD CONNECTED</span>
           </div>
-          <div class="text-xs" style="color:var(--text-muted)">하루 습관과 독서 목표의 자동 관리</div>
+          <div class="text-xs whitespace-nowrap" style="color:var(--text-muted)">하루 습관과 독서 목표의 자동 관리</div>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <label class="text-xs px-2.5 py-1.5 rounded-lg card cursor-pointer" style="color:var(--text-muted)">
+      <div class="flex items-center gap-2 shrink-0">
+        <label class="text-xs px-2.5 py-1.5 rounded-lg card cursor-pointer whitespace-nowrap" style="color:var(--text-muted)">
           📥 복구<input type="file" accept="application/json" class="hidden" onchange="importBackup(this)">
         </label>
-        <button onclick="exportBackup()" class="text-xs px-2.5 py-1.5 rounded-lg card" style="color:var(--text-muted)">💾 백업</button>
+        <button onclick="exportBackup()" class="text-xs px-2.5 py-1.5 rounded-lg card whitespace-nowrap" style="color:var(--text-muted)">💾 백업</button>
       </div>
     </div>`;
   }
@@ -468,7 +481,6 @@
     `;
   }
 
-  /* ================= RENDER: TAB 3 (달성 정도 % 연산 추가) ================= */
   function renderConfigTab(){
     const mKey = state.selectedMonth;
     const cfg = ensureMonthConfig(mKey);
