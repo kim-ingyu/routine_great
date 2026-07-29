@@ -178,7 +178,16 @@
 
   function ensureDaily(dateKey){
     if(!state.daily[dateKey]){
-      state.daily[dateKey] = { dailyChecks:{}, investorChecks:{}, gratitude:[], goodPoints:[], improvements:[], pagesRead:0 };
+      state.daily[dateKey] = { 
+        dailyChecks:{}, 
+        investorChecks:{}, 
+        gratitude:[], 
+        goodPoints:[], 
+        improvements:[], 
+        connectedMoments:[], 
+        tomorrowExpectation:'', 
+        pagesRead:0 
+      };
     }
     return state.daily[dateKey];
   }
@@ -450,9 +459,21 @@
 
   function renderDiaryTab(){
     const rec = ensureDaily(state.selectedDate);
-    const gratitudeInputs = [0,1,2,3].map(i=>`<textarea placeholder="감사 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','gratitude'], ${i}, this.value)">${esc((rec.gratitude||[])[i])}</textarea>`).join('');
-    const goodInputs = [0,1,2].map(i=>`<textarea placeholder="잘한 점 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','goodPoints'], ${i}, this.value)">${esc((rec.goodPoints||[])[i])}</textarea>`).join('');
+
+    // 1. 오늘 감사한 일 (1개)
+    const gratitudeInput = `<textarea placeholder="오늘 감사한 일" oninput="updateArrField(['daily','${state.selectedDate}','gratitude'], 0, this.value)">${esc((rec.gratitude||[])[0])}</textarea>`;
+
+    // 2. 오늘 내가 성장한 행동 (3개)
+    const goodInputs = [0,1,2].map(i=>`<textarea placeholder="성장한 행동 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','goodPoints'], ${i}, this.value)">${esc((rec.goodPoints||[])[i])}</textarea>`).join('');
+
+    // 3. 개선할 점 / 반성 (3개)
     const impInputs = [0,1,2].map(i=>`<textarea placeholder="개선할 점 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','improvements'], ${i}, this.value)">${esc((rec.improvements||[])[i])}</textarea>`).join('');
+
+    // 4. 오늘 연결된 순간 (3개)
+    const connInputs = [0,1,2].map(i=>`<textarea placeholder="연결된 순간 ${i+1}" oninput="updateArrField(['daily','${state.selectedDate}','connectedMoments'], ${i}, this.value)">${esc((rec.connectedMoments||[])[i])}</textarea>`).join('');
+
+    // 5. 내일 가장 기대되는 1가지 (1개)
+    const tomorrowInput = `<textarea placeholder="내일 가장 기대되는 1가지" oninput="updateField(['daily','${state.selectedDate}','tomorrowExpectation'], this.value)">${esc(rec.tomorrowExpectation || '')}</textarea>`;
 
     return `
     <div class="flex items-center justify-between mb-4">
@@ -464,18 +485,35 @@
       <button onclick="saveNow()" class="text-xs font-semibold px-3.5 py-2 rounded-lg badge-gold">저장하기</button>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-4">
-      <div class="card p-4">
-        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🙏 감사일기</div>
-        <div class="space-y-2">${gratitudeInputs}</div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <!-- 오늘 감사한 일 (1줄) -->
+      <div class="card p-4 md:col-span-2">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🙏 오늘 감사한 일</div>
+        <div>${gratitudeInput}</div>
       </div>
+
+      <!-- 오늘 내가 성장한 행동 (3줄) -->
       <div class="card p-4">
-        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">👍 잘한 점</div>
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">👍 오늘 내가 성장한 행동</div>
         <div class="space-y-2">${goodInputs}</div>
       </div>
+
+      <!-- 개선할 점 / 반성 (3줄) -->
       <div class="card p-4">
         <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🔧 개선할 점 / 반성</div>
         <div class="space-y-2">${impInputs}</div>
+      </div>
+
+      <!-- 오늘 연결된 순간 (3줄) -->
+      <div class="card p-4">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">🔗 오늘 연결된 순간</div>
+        <div class="space-y-2">${connInputs}</div>
+      </div>
+
+      <!-- 내일 가장 기대되는 1가지 (1줄) -->
+      <div class="card p-4">
+        <div class="text-xs font-semibold mb-2" style="color:var(--gold)">✨ 내일 가장 기대되는 1가지</div>
+        <div>${tomorrowInput}</div>
       </div>
     </div>
     `;
